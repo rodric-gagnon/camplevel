@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1C2820">
+<title>Camp Level</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 76'%3E%3Crect width='76' height='76' rx='16' fill='%231C2820'/%3E%3Cline x1='38' y1='8' x2='38' y2='68' stroke='%23D6C9AE' stroke-width='2.5'/%3E%3Cline x1='8' y1='38' x2='68' y2='38' stroke='%23D6C9AE' stroke-width='2.5'/%3E%3Ccircle cx='38' cy='38' r='11' fill='none' stroke='%23D6C9AE' stroke-width='2.5'/%3E%3Ccircle cx='51' cy='25' r='9' fill='%23C1652F'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --ground:#1C2820; --panel:#243428; --edge:#3A4A3E; --grid:#33422F;
+    --cream:#D6C9AE; --cream-bright:#F3EBDA; --sage:#5C7A5E; --sage-mute:#7A8A6E;
+    --rust:#C1652F; --rust-lt:#E8B48A; --level:#7FB088;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--ground); color:var(--cream); font-family:var(--mono);
+    padding:max(20px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right))
+            max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+    overscroll-behavior:none; touch-action:manipulation; user-select:none; -webkit-user-select:none;
+  }
+  .app{width:100%; height:100%; margin:0 auto; display:flex; flex-direction:column; gap:14px; max-width:360px}
+  header{display:flex; justify-content:space-between; align-items:center; flex-shrink:0}
+  header h1{font-size:13px; font-weight:500; letter-spacing:.14em; color:var(--cream); cursor:pointer}
+  .hright{display:flex; align-items:center; gap:12px}
+  #status{font-size:11px; color:var(--rust)}
+  #sndBtn{
+    font-family:var(--mono); font-size:10px; letter-spacing:.1em; cursor:pointer;
+    background:transparent; color:var(--cream); border:1px solid var(--sage);
+    border-radius:5px; padding:4px 9px;
+  }
+  #sndBtn.muted{color:var(--sage-mute); border-color:var(--grid)}
+  .dial-wrap{flex:1; display:flex; justify-content:center; align-items:center; min-height:0}
+  .dial-wrap svg{width:min(84vw,320px,64vh); height:auto; display:block}
+  .readouts{display:flex; gap:10px; flex-shrink:0}
+  .card{flex:1; background:var(--panel); border-radius:8px; padding:10px 14px; min-width:0}
+  .card .lbl{font-size:11px; letter-spacing:.08em; color:var(--sage-mute)}
+  .card .deg{
+    font-size:clamp(32px, 11vw, 48px); line-height:1.15;
+    color:var(--cream-bright); font-variant-numeric:tabular-nums; white-space:nowrap;
+  }
+  .card.is-level .deg{color:var(--level)}
+
+  @media (orientation: landscape){
+    .app{flex-direction:row; max-width:none; align-items:center; gap:20px}
+    .dial-wrap{order:0; flex:1.2}
+    .dial-wrap svg{width:min(80vh,320px)}
+    .side{order:1; flex:1; display:flex; flex-direction:column; gap:12px; max-width:300px}
+    .readouts{flex-direction:column}
+    .card .deg{font-size:clamp(34px, 9vh, 54px)}
+  }
+  @media (orientation: portrait){
+    .side{display:contents}
+  }
+
+  .overlay{
+    position:fixed; inset:0; background:var(--ground); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:20px; padding:32px; text-align:center; z-index:10;
+  }
+  .overlay h1{font-size:15px; font-weight:500; letter-spacing:.18em}
+  .overlay button{
+    font-family:var(--mono); font-size:12px; letter-spacing:.1em;
+    background:transparent; color:var(--cream); border:1px solid var(--sage);
+    border-radius:8px; padding:14px 34px; cursor:pointer;
+  }
+  .overlay button:active{transform:scale(.98)}
+  .overlay .sub{font-size:11px; color:var(--sage-mute); letter-spacing:.06em}
+  .overlay .skip{
+    background:none; border:none; color:var(--sage-mute); font-size:11px;
+    letter-spacing:.1em; padding:8px; text-decoration:underline;
+  }
+  .overlay .err{color:var(--rust); min-height:16px; font-size:11px; max-width:280px; line-height:1.6}
+  [hidden]{display:none !important}
+  @media (prefers-reduced-motion: no-preference){
+    #bubble{transition:transform .08s linear}
+  }
+</style>
+</head>
+<body>
+
+<div id="gate" class="overlay">
+  <svg width="72" height="72" viewBox="0 0 76 76" aria-hidden="true">
+    <line x1="38" y1="8" x2="38" y2="68" stroke="#D6C9AE" stroke-width="2.5"/>
+    <line x1="8" y1="38" x2="68" y2="38" stroke="#D6C9AE" stroke-width="2.5"/>
+    <circle cx="38" cy="38" r="11" fill="none" stroke="#D6C9AE" stroke-width="2.5"/>
+    <circle cx="51" cy="25" r="9" fill="#C1652F"/>
+  </svg>
+  <h1>CAMP LEVEL</h1>
+  <button id="startBtn">START</button>
+  <p class="err" id="gateErr"></p>
+</div>
+
+<div id="cal" class="overlay" hidden>
+  <h1>CALIBRATE</h1>
+  <p class="sub" id="calSub">PHONE FLAT ON ANY SURFACE</p>
+  <button id="calBtn">READ 1</button>
+  <button id="calSkip" class="skip">SKIP</button>
+</div>
+
+<div class="app">
+  <div class="dial-wrap">
+    <svg viewBox="0 0 284 284" role="img" aria-labelledby="dialTitle">
+      <title id="dialTitle">Bubble level dial</title>
+      <defs><clipPath id="dialClip"><circle cx="142" cy="142" r="118"/></clipPath></defs>
+      <g stroke="var(--grid)" stroke-width="1">
+        <line x1="22" y1="22" x2="22" y2="262"/><line x1="62" y1="22" x2="62" y2="262"/>
+        <line x1="102" y1="22" x2="102" y2="262"/><line x1="182" y1="22" x2="182" y2="262"/>
+        <line x1="222" y1="22" x2="222" y2="262"/><line x1="262" y1="22" x2="262" y2="262"/>
+        <line x1="22" y1="22" x2="262" y2="22"/><line x1="22" y1="62" x2="262" y2="62"/>
+        <line x1="22" y1="102" x2="262" y2="102"/><line x1="22" y1="182" x2="262" y2="182"/>
+        <line x1="22" y1="222" x2="262" y2="222"/><line x1="22" y1="262" x2="262" y2="262"/>
+      </g>
+      <g stroke="var(--grid)" stroke-width="1" stroke-dasharray="3 6">
+        <line x1="22" y1="42" x2="262" y2="42"/><line x1="22" y1="82" x2="262" y2="82"/>
+        <line x1="22" y1="122" x2="262" y2="122"/><line x1="22" y1="162" x2="262" y2="162"/>
+        <line x1="22" y1="202" x2="262" y2="202"/><line x1="22" y1="242" x2="262" y2="242"/>
+        <line x1="42" y1="22" x2="42" y2="262"/><line x1="82" y1="22" x2="82" y2="262"/>
+        <line x1="122" y1="22" x2="122" y2="262"/><line x1="162" y1="22" x2="162" y2="262"/>
+        <line x1="202" y1="22" x2="202" y2="262"/><line x1="242" y1="22" x2="242" y2="262"/>
+      </g>
+      <circle id="bubble" cx="142" cy="142" r="14" fill="var(--rust)" stroke="var(--rust-lt)" stroke-width="1"/>
+      <circle cx="142" cy="142" r="118" fill="none" stroke="var(--cream)" stroke-width="2"/>
+      <circle cx="142" cy="142" r="78" fill="none" stroke="var(--sage)" stroke-width=".75"/>
+      <line x1="142" y1="24" x2="142" y2="260" stroke="var(--cream)" stroke-width="1.5" clip-path="url(#dialClip)"/>
+      <line x1="24" y1="142" x2="260" y2="142" stroke="var(--cream)" stroke-width="1.5" clip-path="url(#dialClip)"/>
+      <circle id="ring" cx="142" cy="142" r="14" fill="none" stroke="var(--cream)" stroke-width="1.5"/>
+      <g stroke="var(--cream)" stroke-width="1.5">
+        <line x1="142" y1="16" x2="142" y2="26"/><line x1="142" y1="258" x2="142" y2="268"/>
+        <line x1="16" y1="142" x2="26" y2="142"/><line x1="258" y1="142" x2="268" y2="142"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="side">
+    <header>
+      <h1 id="title" title="Recalibrate">CAMP LEVEL</h1>
+      <div class="hright">
+        <span id="status"></span>
+        <button id="sndBtn" aria-pressed="true">SOUND</button>
+      </div>
+    </header>
+    <div class="readouts">
+      <div class="card" id="xCard">
+        <div class="lbl">X</div>
+        <div class="deg" id="xDeg">0.0&deg;</div>
+      </div>
+      <div class="card" id="yCard">
+        <div class="lbl">Y</div>
+        <div class="deg" id="yDeg">0.0&deg;</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var FULL_SCALE = 4;             // degrees at dial edge
+  var TOL_IN = 0.5;               // enter level state
+  var TOL_OUT = 0.7;              // exit level state (hysteresis)
+  var BEEP_ZONE = 2.0;            // start beeping inside this
+  var DIAL_R = 118, BUBBLE_R = 14;
+  var PX_PER_DEG = (DIAL_R - BUBBLE_R) / FULL_SCALE;
+  var ALPHA = 0.15;
+  var CAL_KEY = 'camplevel-cal';
+
+  var raw = {b:0, g:0}, sm = {b:0, g:0}, bias = {b:0, g:0};
+  var xLevel = false, yLevel = false, wasLevel = false;
+  var gotData = false, primed = false;
+  var audioCtx = null, muted = false, nextBeep = 0, levelOsc = null, levelGain = null;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var ring = $('ring'), bubble = $('bubble');
+  ring.setAttribute('r', (TOL_IN * PX_PER_DEG).toFixed(1));
+
+  try {
+    var stored = JSON.parse(localStorage.getItem(CAL_KEY));
+    if (stored && typeof stored.b === 'number'){ bias = stored; }
+  } catch(e){}
+
+  function screenAngle(){
+    if (screen.orientation && typeof screen.orientation.angle === 'number')
+      return screen.orientation.angle;
+    return (typeof window.orientation === 'number') ? (window.orientation + 360) % 360 : 0;
+  }
+
+  function onOrient(e){
+    if (e.beta === null || e.gamma === null) return;
+    raw.b = e.beta; raw.g = e.gamma;
+    if (!primed){ sm.b = raw.b; sm.g = raw.g; primed = true; }
+    gotData = true;
+  }
+
+  function fmt(v){
+    var r = Math.round(v * 10) / 10;
+    if (Object.is(r, -0)) r = 0;
+    return (r > 0 ? '+' : '') + r.toFixed(1) + '\u00B0';
+  }
+
+  /* ---------- audio ---------- */
+  function initAudio(){
+    if (audioCtx) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  function beep(){
+    if (!audioCtx || muted) return;
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.1);
+  }
+  function startLevelTone(){
+    if (!audioCtx || muted || levelOsc) return;
+    levelOsc = audioCtx.createOscillator();
+    levelGain = audioCtx.createGain();
+    levelOsc.type = 'sine'; levelOsc.frequency.value = 880;
+    levelGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    levelGain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.05);
+    levelOsc.connect(levelGain); levelGain.connect(audioCtx.destination);
+    levelOsc.start();
+  }
+  function stopLevelTone(){
+    if (!levelOsc) return;
+    var t = audioCtx.currentTime;
+    levelGain.gain.setValueAtTime(levelGain.gain.value, t);
+    levelGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    levelOsc.stop(t + 0.1);
+    levelOsc = null; levelGain = null;
+  }
+
+  /* ---------- main loop ---------- */
+  function render(){
+    sm.b += ALPHA * (raw.b - sm.b);
+    sm.g += ALPHA * (raw.g - sm.g);
+
+    var cb = sm.b - bias.b, cg = sm.g - bias.g;
+
+    // remap device axes to screen axes
+    var x, y, a = screenAngle();
+    switch (a){
+      case 90:  x =  cb; y = -cg; break;
+      case 180: x = -cg; y = -cb; break;
+      case 270: x = -cb; y =  cg; break;
+      default:  x =  cg; y =  cb;
+    }
+
+    var bx = Math.max(-1, Math.min(1, -x / FULL_SCALE));
+    var by = Math.max(-1, Math.min(1, -y / FULL_SCALE));
+    var mag = Math.sqrt(bx*bx + by*by);
+    if (mag > 1){ bx /= mag; by /= mag; }
+    bubble.setAttribute('transform',
+      'translate(' + (bx * (DIAL_R - BUBBLE_R)).toFixed(1) + ',' +
+                     (by * (DIAL_R - BUBBLE_R)).toFixed(1) + ')');
+
+    $('xDeg').textContent = fmt(x);
+    $('yDeg').textContent = fmt(y);
+
+    // per-axis hysteresis
+    var ax = Math.abs(x), ay = Math.abs(y);
+    xLevel = xLevel ? (ax <= TOL_OUT) : (ax <= TOL_IN);
+    yLevel = yLevel ? (ay <= TOL_OUT) : (ay <= TOL_IN);
+    $('xCard').classList.toggle('is-level', xLevel);
+    $('yCard').classList.toggle('is-level', yLevel);
+
+    var isLevel = xLevel && yLevel;
+    bubble.setAttribute('fill',   isLevel ? 'var(--level)' : 'var(--rust)');
+    bubble.setAttribute('stroke', isLevel ? 'var(--level)' : 'var(--rust-lt)');
+    ring.setAttribute('stroke',   isLevel ? 'var(--level)' : 'var(--cream)');
+
+    // audio: solid tone at level, quickening beeps on approach
+    if (isLevel){
+      startLevelTone();
+    } else {
+      stopLevelTone();
+      var dist = Math.max(ax, ay);
+      if (dist <= BEEP_ZONE){
+        var t01 = Math.min(1, Math.max(0, (dist - TOL_IN) / (BEEP_ZONE - TOL_IN)));
+        var interval = 140 + t01 * 460; // 140ms near level .. 600ms at zone edge
+        var now = performance.now();
+        if (now >= nextBeep){ beep(); nextBeep = now + interval; }
+      }
+    }
+
+    if (isLevel && !wasLevel && navigator.vibrate) navigator.vibrate(60);
+    wasLevel = isLevel;
+
+    requestAnimationFrame(render);
+  }
+
+  /* ---------- calibration ---------- */
+  var calStep = 0, read1 = null;
+  function showCal(){
+    $('cal').hidden = false;
+  }
+  $('calBtn').addEventListener('click', function(){
+    if (calStep === 0){
+      read1 = {b: sm.b, g: sm.g};
+      calStep = 1;
+      $('calSub').textContent = 'ROTATE PHONE 180\u00B0 \u00B7 SAME SPOT';
+      this.textContent = 'READ 2';
+    } else {
+      bias = {b:(read1.b + sm.b)/2, g:(read1.g + sm.g)/2};
+      try { localStorage.setItem(CAL_KEY, JSON.stringify(bias)); } catch(e){}
+      $('cal').hidden = true;
+    }
+  });
+  $('calSkip').addEventListener('click', function(){
+    bias = {b:0, g:0};
+    try { localStorage.setItem(CAL_KEY, JSON.stringify(bias)); } catch(e){}
+    $('cal').hidden = true;
+  });
+  $('title').addEventListener('click', function(){
+    calStep = 0; read1 = null;
+    $('calSub').textContent = 'PHONE FLAT ON ANY SURFACE';
+    $('calBtn').textContent = 'READ 1';
+    showCal();
+  });
+
+  /* ---------- sound toggle ---------- */
+  $('sndBtn').addEventListener('click', function(){
+    muted = !muted;
+    this.classList.toggle('muted', muted);
+    this.setAttribute('aria-pressed', String(!muted));
+    if (muted) stopLevelTone();
+  });
+
+  /* ---------- start ---------- */
+  function requestWakeLock(){
+    if ('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').catch(function(){});
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible')
+          navigator.wakeLock.request('screen').catch(function(){});
+      });
+    }
+  }
+
+  $('startBtn').addEventListener('click', function(){
+    initAudio();
+    var begin = function(){
+      window.addEventListener('deviceorientation', onOrient);
+      $('gate').style.display = 'none';
+      requestWakeLock();
+      requestAnimationFrame(render);
+      if (localStorage.getItem(CAL_KEY) === null) showCal();
+      setTimeout(function(){
+        if (!gotData) $('status').textContent = 'NO SENSOR DATA';
+      }, 2500);
+    };
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function'){
+      DeviceOrientationEvent.requestPermission().then(function(state){
+        if (state === 'granted') begin();
+        else $('gateErr').textContent = 'Motion access denied. Enable it in Settings > Apps > Safari.';
+      }).catch(function(){
+        $('gateErr').textContent = 'Sensor request failed. Use HTTPS in Safari.';
+      });
+    } else {
+      begin();
+    }
+  });
+
+  /* ---------- offline ---------- */
+  if ('serviceWorker' in navigator && location.protocol === 'https:'){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
+})();
+</script>
+</body>
+</html>
